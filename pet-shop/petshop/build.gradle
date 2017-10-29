@@ -1,0 +1,111 @@
+group 'net.yc384.web'
+version '1.0-SNAPSHOT'
+
+buildscript {
+    ext{
+        kotlin_version = '1.1.4-3'
+        shadow_version = '2.0.1'
+    }
+
+    repositories {
+        jcenter()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.github.jengelman.gradle.plugins:shadow:$shadow_version"
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'application'
+apply plugin: "com.github.johnrengelman.shadow"
+
+sourceCompatibility = 1.8
+mainClassName = 'io.vertx.core.Launcher'
+
+def vertx_version= '3.5.0'
+def mainVerticleName = 'net.yc384.web.MainVerticle'
+
+repositories {
+    jcenter()
+    mavenCentral()
+}
+
+dependencies {
+    //kt运行时环境
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
+
+    //vertx web依赖
+    compile "io.vertx:vertx-core:$vertx_version"
+    compile "io.vertx:vertx-web:$vertx_version"
+    compile "io.vertx:vertx-web-templ-jade:$vertx_version"
+    compile "io.vertx:vertx-web-client:$vertx_version"
+
+    compile "io.vertx:vertx-service-proxy:$vertx_version:processor"
+    //服务代理
+    compile "io.vertx:vertx-service-proxy:$vertx_version"
+
+    //验证
+    compile "io.vertx:vertx-auth-common:$vertx_version"
+    compile "io.vertx:vertx-auth-jdbc:$vertx_version"
+
+    //db
+    compile "io.vertx:vertx-jdbc-client:$vertx_version"
+    compile "mysql:mysql-connector-java:8.0.8-dmr"
+
+
+    //log
+    compile "ch.qos.logback:logback-classic:1.2.3"
+
+    compileOnly "io.vertx:vertx-codegen:$vertx_version"
+
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testCompile group: 'io.vertx', name: 'vertx-unit', version: "$vertx_version"
+}
+
+
+run {
+    args = ['run', mainVerticleName,
+            "--launcher-class=$mainClassName",
+            "--redeploy=src/**/*.*",
+            "--on-redeploy=./gradlew classes"
+    ]
+}
+
+shadowJar {
+    baseName = 'app'
+    classifier = 'shadow'
+    manifest {
+        attributes 'Main-Verticle': mainVerticleName
+    }
+    mergeServiceFiles {
+        include 'META-INF/services/io.vertx.core.spi.VerticleFactory'
+    }
+}
+
+task annotationProcessing(type: JavaCompile, group: 'build') { // codegen
+    source = sourceSets.main.java
+    classpath = configurations.compile + configurations.compileOnly
+    destinationDir = project.file('src/main/generated')
+    options.compilerArgs = [
+            "-proc:only",
+            "-processor", "io.vertx.codegen.CodeGenProcessor",
+            "-AoutputDirectory=${project.projectDir}/src/main"
+    ]
+}
+
+compileJava {
+    targetCompatibility = 1.8
+    sourceCompatibility = 1.8
+
+    dependsOn annotationProcessing
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += 'src/main/generated'
+        }
+    }
+}
